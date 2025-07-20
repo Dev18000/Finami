@@ -1,0 +1,73 @@
+﻿@inject AppDbContext Db
+@rendermode InteractiveServer
+
+<PieChart @ref="pieChart" Width="500" />
+
+@code {
+    private PieChart pieChart = default!;
+    private PieChartOptions pieChartOptions = default!;
+    private ChartData chartData = default!;
+    private string[]? backgroundColors;
+
+    private Random random = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        backgroundColors = ColorUtility.CategoricalTwelveColors;
+
+        var expenses = await Db.Transactions
+            .Include(t => t.Category)
+            .Where(t => t.Type == TransactionType.Expense)
+            .ToListAsync();
+
+        var grouped = expenses
+            .GroupBy(t => t.Category)
+            .Select((g, index) => new
+            {
+                Label = g.Key!.Name,
+                Value = g.Sum(x => (double)x.Amount),
+                Color = g.Key.Color ?? backgroundColors![index % backgroundColors.Length]
+            })
+            .ToList();
+
+        var labels = grouped.Select(g => g.Label).ToList();
+        var values = grouped.Select(g => (double?)g.Value).ToList();
+        var colors = grouped.Select(g => g.Color).ToList();
+
+        chartData = new ChartData
+            {
+                Labels = labels,
+                Datasets = new List<IChartDataset>
+            {
+                new PieChartDataset
+                {
+                    Label = "Expenses",
+                    Data = values,
+                    BackgroundColor = colors
+                }
+            }
+            };
+
+        pieChartOptions = new();
+        pieChartOptions.Responsive = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await pieChart.InitializeAsync(chartData, pieChartOptions);
+        }
+    }
+
+    private async Task PositionTopAsync() => await UpdatePositionAsync("top");
+    private async Task PositionRightAsync() => await UpdatePositionAsync("right");
+    private async Task PositionBottomAsync() => await UpdatePositionAsync("bottom");
+    private async Task PositionLeftAsync() => await UpdatePositionAsync("left");
+
+    private async Task UpdatePositionAsync(string position)
+    {
+        pieChartOptions.Plugins.Legend.Position = position;
+        await pieChart.UpdateAsync(chartData, pieChartOptions);
+    }
+}

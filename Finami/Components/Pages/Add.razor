@@ -1,0 +1,77 @@
+﻿@page "/add"
+@rendermode InteractiveServer
+@inject AppDbContext Db
+
+<h3>Add Transaction</h3>
+
+<EditForm Model="@transaction" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <Microsoft.AspNetCore.Components.Forms.ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Date</label>
+        <InputDate class="form-control" @bind-Value="transaction.Date" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Amount</label>
+        <InputNumber class="form-control" @bind-Value="transaction.Amount" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Description</label>
+        <InputText class="form-control" @bind-Value="transaction.Description" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Type</label>
+        <InputSelect class="form-select" @bind-Value="transaction.Type">
+            <option value="">-- Select --</option>
+            @foreach (var type in Enum.GetValues<TransactionType>())
+            {
+                <option value="@type">@type</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Category</label>
+        <InputSelect class="form-select" @bind-Value="transaction.CategoryId">
+            <option value="">-- Select --</option>
+            @foreach (var cat in categories)
+            {
+                <option value="@cat.Id">@cat.Name</option>
+            }
+        </InputSelect>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+</EditForm>
+
+@if (successMessage != null)
+{
+    <div class="alert alert-success mt-3">@successMessage</div>
+}
+
+@code {
+    private Transaction transaction = new()
+        {
+            Date = DateTime.Today
+        };
+
+    private List<Category> categories = [];
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await Db.Categories.OrderBy(c => c.Name).ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        Db.Transactions.Add(transaction);
+        await Db.SaveChangesAsync();
+        successMessage = "Transaction saved!";
+        transaction = new Transaction { Date = DateTime.Today }; 
+    }
+}

@@ -1,0 +1,114 @@
+﻿@page "/"
+@inject AppDbContext Db
+@using Finami.Components
+
+<h3 class="mb-4">Dashboard</h3>
+
+@if (isLoading)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+        <!-- Left column: Balance info -->
+        <div class="col-md-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5>Balance</h5>
+                    <p class="display-6 fw-bold">@balance.ToString("C")</p>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6 class="mb-1">Total Income</h6>
+                    <p class="text-success fw-semibold">@totalIncome.ToString("C")</p>
+
+                    <h6 class="mb-1">Total Expense</h6>
+                    <p class="text-danger fw-semibold">@totalExpense.ToString("C")</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Expenses by Category</h5>
+                    <PieChartComponent />
+                </div>
+            </div>
+        </div>
+
+        <!-- Right column: Recent Transactions -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Recent Transactions</h5>
+
+                    @if (recentTransactions.Any())
+                    {
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in recentTransactions)
+                                {
+                                    <tr>
+                                        <td>@t.Date.ToString("MMM dd")</td>
+                                        <td>@t.Description</td>
+                                        <td>@t.Category?.Name</td>
+                                        <td class="text-end @(t.Type == TransactionType.Expense ? "text-danger" : "text-success")">
+                                            @(t.Type == TransactionType.Expense ? "-" : "+")@t.Amount.ToString("C")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <p>No transactions yet. <a href="/add">Add your first one</a>.</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private decimal totalIncome;
+    private decimal totalExpense;
+    private decimal balance;
+    private List<Transaction> recentTransactions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Get recent transactions
+        recentTransactions = await Db.Transactions
+            .Include(t => t.Category)
+            .OrderByDescending(t => t.Date)
+            .Take(5)
+            .ToListAsync();
+
+        // SQLite workaround: use double for Sum
+        totalIncome = (decimal)await Db.Transactions
+            .Where(t => t.Type == TransactionType.Income)
+            .Select(t => (double)t.Amount)
+            .SumAsync();
+
+        totalExpense = (decimal)await Db.Transactions
+            .Where(t => t.Type == TransactionType.Expense)
+            .Select(t => (double)t.Amount)
+            .SumAsync();
+
+        balance = totalIncome - totalExpense;
+
+        isLoading = false;
+    }
+}
